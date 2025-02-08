@@ -1,0 +1,10 @@
+datasets
+openai
+tenacity
+pyspark
+langchain
+langchain-community
+langchain_openai
+click
+faiss-cpu
+mlflow
