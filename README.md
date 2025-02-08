@@ -51,6 +51,74 @@ Error response from daemon: failed to create task for container: failed to creat
 
 Once you delete these, try to "Reopen in Container" again.
 
+## How to Use Models:
+
+### Available Model Names
+
+* amazon.nova-lite
+* amazon.nova-micro
+* amazon.nova-pro
+* amazon.titan-text-embeddings.v2
+* anthropic.claude-3-haiku
+* anthropic.claude-3-opus
+* anthropic.claude-3.5-haiku
+* anthropic.claude-3.5-sonnet.v2
+* cohere.command-r
+* cohere.command-r-plus
+* cohere.embed-english.v3
+* meta.llama-3.1-405b-instruct
+* meta.llama-3.2-11b-vision-instruct
+* meta.llama-3.2-1b-instruct
+* meta.llama-3.2-3b-instruct
+* meta.llama-3.2-90b-vision-instruct
+* meta.llama-3.3-70b-instruct
+* stability.stable-diffusion-3.5-large
+* stability.stable-image-ultra
+
+### Models you have to ask for!
+
+If you would like access to Speech to Text models (like OpenAI Whisper), Text to Speech models (like OpenAI TTS), or reasoning models (like OpenAI o3-mini). Please find Marty and he can review your need and give you access
+
+### LLMs
+
+```python
+import openai
+ 
+# Set your API Key via OPENAI_API_KEY environment variable
+# You can also set OPENAI_BASE_URL as https://api.ai.it.cornell.edu
+ 
+client = openai.OpenAI(
+    base_url="https://api.ai.it.cornell.edu", 
+)
+ 
+response = client.chat.completions.create(
+    model="anthropic.claude-3.5-sonnet.v2", # model to send to the proxy, refer to README for available model names
+    messages = [
+        {
+            "role": "user",
+            "content": "this is a test request, write a short poem",
+        }
+    ]
+)
+ 
+print(response)
+```
+
+### Using Other Types of Models
+To use non-LLMs with the API gateway, simply follow the standard documentation from OpenAI, just replace the Base URL as described above and provide a valid model name for the type of action you're trying to take from the tables below.
+
+#### Audio Transcription (speech-to-text)
+https://platform.openai.com/docs/guides/speech-to-text
+
+#### Text to Speech
+https://platform.openai.com/docs/guides/text-to-speech
+
+#### Image Generation
+https://platform.openai.com/docs/guides/images
+
+#### Embeddings
+https://platform.openai.com/docs/guides/embeddings
+
 ## Available Technologies
 
 ### Jupyter Notebooks
