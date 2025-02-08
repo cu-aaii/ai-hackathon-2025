@@ -1,131 +1,208 @@
 import streamlit as st
 import json
-import pandas as pd
-import matplotlib.pyplot as plt
-import altair as alt
+import os
+import random
+from openai import OpenAI
+import time
 
-# Sample JSON Data (Competency Mapping)
-sample_json = """
-{
-  "course_id": "COURSE001",
-  "course_name": "Attacks and Defenses",
-  "competency_mapping": [
-    {
-      "competency": "Medical Knowledge",
-      "sub_competencies": [
-        {
-          "name": "Basic Sciences Application",
-          "coverage": "85%",
-          "missing_sessions": ["SESSION045"],
-          "ready_for_AAMC": false
-        },
-        {
-          "name": "Clinical Reasoning",
-          "coverage": "70%",
-          "missing_sessions": [],
-          "ready_for_AAMC": false
-        }
-      ]
-    },
-    {
-      "competency": "Patient Care",
-      "sub_competencies": [
-        {
-          "name": "History Taking",
-          "coverage": "95%",
-          "missing_sessions": [],
-          "ready_for_AAMC": true
-        }
-      ]
-    }
-  ],
-  "overall_AAMC_compliance": false,
-  "missing_courses": ["SESSION045"],
-  "recommendations": [
-    "Improve coverage for 'Basic Sciences Application' by adding missing sessions.",
-    "Enhance 'Clinical Reasoning' with additional mapped objectives.",
-    "Ensure all required competencies meet at least 90% coverage before submission."
-  ]
-}
-"""
+# Get absolute path relative to the script location
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "..", "data")  # Assuming `data/` is outside `app/`
+DATA_FILE = os.path.join(DATA_DIR, "cs_curriculum.json")
 
-# Load JSON Data
-data = json.loads(sample_json)
+# Ensure the data directory and file exist
+if not os.path.exists(DATA_FILE):
+    raise FileNotFoundError(f"Data file not found: {DATA_FILE}")
 
-# Streamlit UI
-st.title("📊 AAMC Competency Mapping Dashboard")
-st.subheader(f"Course: {data['course_name']} ({data['course_id']})")
+# Load JSON data
+with open(DATA_FILE, "r") as file:
+    curriculum_data = json.load(file)
 
-# AAMC Compliance Check
-if data["overall_AAMC_compliance"]:
-    st.success("✅ This course is **READY** for AAMC submission!")
-else:
-    st.warning("⚠️ This course is **NOT READY** for AAMC submission. Review missing competencies below.")
+print("Successfully loaded curriculum data!")
 
-# Prepare Data for Charts
-competency_names = []
-sub_competencies = []
-coverages = []
-ready_status = []
 
-for comp in data["competency_mapping"]:
-    for sub_comp in comp["sub_competencies"]:
-        competency_names.append(comp["competency"])
-        sub_competencies.append(sub_comp["name"])
-        coverages.append(int(sub_comp["coverage"].strip("%")))
-        ready_status.append("Ready" if sub_comp["ready_for_AAMC"] else "Not Ready")
+# Initialize OpenAI client (Ensure API key is set in environment variables or secrets)
+client = OpenAI(api_key="")
 
-# Convert to Pandas DataFrame
-df = pd.DataFrame({
-    "Competency": competency_names,
-    "Sub-Competency": sub_competencies,
-    "Coverage (%)": coverages,
-    "Status": ready_status
-})
+# Flatten curriculum into a list of topics
+# Flatten curriculum into a list of topics
+courses = []
+for category, course_list in curriculum_data["curriculum"].items():
+    for course in course_list:
+        courses.append({
+            "name": course["course_name"],
+            "topic": course["course_name"].split(":")[0],  # Extract main topic
+        })
 
-# ------------------ 📊 Competency Coverage Progress Bars ------------------
-st.subheader("🧑‍🎓 Competency Coverage Breakdown")
-for comp in data["competency_mapping"]:
-    st.write(f"### **{comp['competency']}**")
-    for sub_comp in comp["sub_competencies"]:
-        coverage = int(sub_comp["coverage"].strip("%"))
-        st.write(f"📌 **{sub_comp['name']}**")
-        st.progress(coverage / 100)
-        if sub_comp["ready_for_AAMC"]:
-            st.success("✅ Meets AAMC requirements")
-        else:
-            st.warning(f"⚠️ Needs improvement (Current Coverage: {coverage}%)")
+# Initialize session state
+if "score" not in st.session_state:
+    st.session_state.score = 0
+if "chat_log" not in st.session_state:
+    st.session_state.chat_log = []
+if "current_question" not in st.session_state:
+    st.session_state.current_question = None
+if "current_topic" not in st.session_state:
+    st.session_state.current_topic = ""
 
-# ------------------ 📊 Competency Coverage Pie Chart ------------------
-st.subheader("📊 Competency Coverage Overview")
+st.title("Computer Science Concept Quiz")
 
-fig, ax = plt.subplots()
-ax.pie(df["Coverage (%)"], labels=df["Sub-Competency"], autopct='%1.1f%%', startangle=140, colors=["#66b3ff", "#ff9999", "#99ff99"])
-ax.axis('equal')  # Equal aspect ratio ensures the pie chart is circular.
-st.pyplot(fig)
+# Function to generate a simpler AI-powered question
+def generate_question():
+    course = random.choice(courses)
+    topic = course["topic"]
+    
+    prompt = f"Generate a general computer science quiz question based on the topic '{topic}'. Keep it concise and avoid complex wording. Do not include multiple-choice options or answers."
+    with st.spinner("Generating question..."):
+        time.sleep(1)  # Simulate loading
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "system", "content": "You are a confused student who is not very confident about computer science topics. You sometimes make mistakes and ask for clarification. Your responses should be informal, uncertain, and sometimes incorrect. Use phrases like 'I think...', 'Maybe it's like...', or 'Wait, am I getting this right?'"},
+                      {"role": "user", "content": prompt}]
+        )
+        
+    question_text = response.choices[0].message.content.strip()
+    return question_text, topic
 
-# ------------------ 📊 Competency Coverage Bar Chart ------------------
-st.subheader("📊 Competency Coverage by Sub-Competency")
+# Generate a new question if needed
+if st.session_state.current_question is None:
+    st.session_state.current_question, st.session_state.current_topic = generate_question()
+    st.session_state.chat_log.append({"role": "assistant", "content": st.session_state.current_question})
 
-bar_chart = alt.Chart(df).mark_bar().encode(
-    x=alt.X("Sub-Competency", sort="-y"),
-    y="Coverage (%)",
-    color="Status"
-).properties(width=700, height=400)
+# Display chat log
+for message in st.session_state.chat_log:
+    with st.chat_message(message["role"]):
+        st.write(message["content"])
 
-st.altair_chart(bar_chart)
+user_answer = st.text_area("Your Answer:")
 
-# ------------------ 📝 Missing Sessions ------------------
-st.subheader("⚠️ Missing Sessions")
-if data["missing_courses"]:
-    missing_sessions_df = pd.DataFrame({"Missing Sessions": data["missing_courses"]})
-    st.table(missing_sessions_df)
-else:
-    st.success("✅ No missing sessions detected!")
+if st.button("Submit"):
+    st.session_state.chat_log.append({"role": "user", "content": user_answer})
+    
+    prompt_eval = f"Evaluate this answer to the question: '{st.session_state.current_question}'. Answer: {user_answer}. Instead of correcting the user, ask follow-up questions that highlight gaps in their understanding and encourage deeper thinking. Do not provide the correct answer."
+    with st.spinner("Thinking..."):
+        time.sleep(1)  # Simulate loading
+        eval_response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "system", "content": "You are a confused student who isn't sure if they understand the topic. Instead of providing corrections, ask the user additional questions to encourage deeper thinking and help them identify gaps in their understanding."},
+                      {"role": "user", "content": prompt_eval}]
+        )
+        
+    feedback = eval_response.choices[0].message.content.strip()
+    st.session_state.chat_log.append({"role": "assistant", "content": feedback})
 
-# ------------------ 📌 AI Recommendations ------------------
-st.subheader("📌 AI Recommendations for AAMC Compliance")
-for rec in data["recommendations"]:
-    st.write(f"🔹 {rec}")
+if st.button("Next Question"):
+    st.session_state.current_question, st.session_state.current_topic = generate_question()
+    st.session_state.chat_log.append({"role": "assistant", "content": st.session_state.current_question})
+    
+st.write(f"Your Score: {st.session_state.score}")
 
-st.info("Make the suggested updates before resubmitting to AAMC for compliance approval.")
+# # Flatten curriculum into a list of topics
+# courses = []
+# for category, course_list in curriculum_data["curriculum"].items():
+#     for course in course_list:
+#         courses.append({
+#             "name": course["course_name"],
+#             "topic": course["course_name"].split(":")[0],  # Extract main topic
+#             "url": course.get("url", ""),
+#         })
+
+# # Initialize session state
+# if "score" not in st.session_state:
+#     st.session_state.score = 0
+# if "current_question" not in st.session_state:
+#     st.session_state.current_question = None
+# if "correct_answer" not in st.session_state:
+#     st.session_state.correct_answer = ""
+# if "current_topic" not in st.session_state:
+#     st.session_state.current_topic = ""
+
+# st.title("Computer Science Concept Quiz")
+
+# # Function to generate an AI-powered question
+# def generate_question():
+#     course = random.choice(courses)
+#     topic = course["topic"]
+    
+#     prompt = f"Generate an in-depth, conceptual computer science quiz question based on the topic '{topic}'."
+#     response = client.chat.completions.create(
+#         model="gpt-4o",
+#         messages=[{"role": "system", "content": "You are a CS instructor creating challenging conceptual quiz questions."},
+#                   {"role": "user", "content": prompt}]
+#     )
+    
+#     question_text = response.choices[0].message.content
+    
+#     return question_text, topic
+
+# # Generate a new question if needed
+# if st.session_state.current_question is None:
+#     st.session_state.current_question, st.session_state.current_topic = generate_question()
+
+# st.write(st.session_state.current_question)
+# user_answer = st.text_area("Your Answer:")
+
+# if st.button("Submit"):
+#     prompt_eval = f"Evaluate this answer to the question: '{st.session_state.current_question}'.\nAnswer: {user_answer}.\nProvide feedback and correctness evaluation."
+#     eval_response = client.chat.completions.create(
+#         model="gpt-4o",
+#         messages=[{"role": "system", "content": "You are a CS instructor grading answers and providing feedback."},
+#                   {"role": "user", "content": prompt_eval}]
+#     )
+    
+#     feedback = eval_response.choices[0].message.content
+#     st.write("### Feedback:")
+#     st.write(feedback)
+    
+#     # Generate a new question
+#     st.session_state.current_question, st.session_state.current_topic = generate_question()
+    
+# st.write(f"Your Score: {st.session_state.score}")
+
+
+# import streamlit as st
+# from openai import OpenAI
+# import os
+
+# def main():
+#     st.title("Chatbot using OpenAI and Streamlit")
+    
+#     # Set API Key securely
+#     api_key = "
+#     if not api_key:
+#         st.error("Please set your OpenAI API key in Streamlit secrets or environment variables.")
+#         return
+    
+#     # openai.api_key = api_key
+#     client = OpenAI(api_key = "
+    
+#     # Initialize chat history
+#     if "messages" not in st.session_state:
+#         st.session_state.messages = []
+    
+#     # Display chat history
+#     for message in st.session_state.messages:
+#         with st.chat_message(message["role"]):
+#             st.markdown(message["content"])
+    
+#     # User input
+#     user_input = st.chat_input("Type your message...")
+#     if user_input:
+#         # Append user message to chat history
+#         st.session_state.messages.append({"role": "user", "content": user_input})
+#         with st.chat_message("user"):
+#             st.markdown(user_input)
+        
+#         # Generate response from OpenAI
+#         response = client.chat.completions.create(
+#           model="gpt-4o",
+#           messages=st.session_state.messages
+#         )
+#         bot_reply = response.choices[0].message.content
+        
+#         # Append assistant response to chat history
+#         st.session_state.messages.append({"role": "assistant", "content": bot_reply})
+#         with st.chat_message("assistant"):
+#             st.markdown(bot_reply)
+
+# if __name__ == "__main__":
+#     main()
