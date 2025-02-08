@@ -17,6 +17,12 @@ Using this development environment has a few prerequisites:
 3. Install the "Dev Containers" extension inside VS Code
 4. [Install the AWS CLI V2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) on your computer (v2 is required, v1 will not work)
 
+##  Forking this Repository
+
+This repo is set up as a "template" repository and is designed for you to fork to your personal GitHub account or organization. Once you have created your own fork, you can then "Create a New Repository" in GitHub and select your new fork as the template repository.
+
+Once you have your fresh new repo made from the template, you're good to go!
+
 ## Starting the Dev Container
 
 1. Open VS Code, clone this repository to your local machine and open it
@@ -25,8 +31,8 @@ Using this development environment has a few prerequisites:
 ```
 # .env file
 
-OPENAI_API_KEY=https://api.ai.it.cornell.edu
-OPENAI_BASE_URL=sk-abcdefg12-3
+OPENAI_BASE_URL=https://api.ai.it.cornell.edu
+OPENAI_API_KEY=sk-abcdefg12-3
 ```
 
 3. In the bottom left corner of VS Code, click the green button and select "Reopen in Container" from the menu
